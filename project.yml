@@ -1,0 +1,147 @@
+# =============================================================================
+# Kotone — XcodeGen project specification (rev.56)
+#
+#   xcodegen generate
+#
+# 名前を変える場合は scripts/rename.sh を使ってください。
+#
+# rev.56: Gecko（GeckoView.framework・Reynard Helper.appex・XUL）を外し、
+#   WKWebView + WKWebExtension に置き換えた。ターゲットはアプリ本体だけ。
+#   App Extension を持たないので、LiveContainer で動かせる構成になった
+#   （LiveContainer はゲストの App Extension を起動できない）。
+#   WKWebExtension は iOS 18.4 以上。deploymentTarget 26.0 なので常にある。
+# =============================================================================
+
+name: Kotone
+
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    # ViviMusic の Views は iOS 16/17 の SwiftUI API を前提にしている。
+    #   NavigationStack / navigationDestination / LabeledContent /
+    #   AnyShape / presentationDetents / NavigationPath  → iOS 16
+    #   onChange(of:initial:_:) / symbolEffect            → iOS 17
+    # WKWebExtension は iOS 18.4。対象機は iPadOS 26 以上なので 26.0。
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
+    ARCHS: arm64
+
+targets:
+
+  # ---------------------------------------------------------------------------
+  # アプリ本体（rev.56 からターゲットはこれだけ）
+  # ---------------------------------------------------------------------------
+  Kotone:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/App
+        excludes:
+          - "**/*.md"
+          - "**/LICENSE*"
+          - "**/.gitkeep"
+          - "**/Info.plist"
+
+      # ViviMusic から取り込んだ UI と InnerTube。
+      # 再生系（Playback / SABR / PoToken / PlayerJSService）は
+      # 取り込んでおらず、PlayerManager は Sources/App に新規実装がある。
+      # 詳細は docs/VIVIMUSIC.md。
+      - path: Sources/Vivi/Core
+        excludes: ["**/*.md", "**/LICENSE*", "**/.gitkeep"]
+      - path: Sources/Vivi/InnerTube
+        excludes: ["**/*.md", "**/LICENSE*", "**/.gitkeep"]
+      - path: Sources/Vivi/Views
+        excludes: ["**/*.md", "**/LICENSE*", "**/.gitkeep"]
+      - path: Sources/Vivi/Services
+        excludes:
+          - "**/*.md"
+          - "**/LICENSE*"
+          - "**/.gitkeep"
+          # AVAudioEngine / MTAudioProcessingTap による EQ 実装。
+          # ViviMusic では AVPlayer の音声に噛ませていたが、
+          # Kotone は再生がページ（WKWebView）内で完結するのでタップする対象が無い。
+          # どこからも参照されていないことを確認済み。
+          #
+          # EqualizerSettings は残すので EqualizerView は表示できる
+          # （設定値が効かないだけ）。
+          - "Equalizer/EqualizerTap.swift"
+          - "Equalizer/BiquadFilter.swift"
+      # Kotone Bridge（WKWebExtension）。フォルダごと Kotone.app/Extension/ に置き、
+      # WebEngine が WKWebExtension(resourceBaseURL:) で読み込む。
+      - path: Extension
+        type: folder
+        buildPhase: resources
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        CFBundleDisplayName: Kotone
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundlePackageType: APPL
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: ""
+        CADisableMinimumFrameDurationOnPhone: true
+        UIApplicationSupportsIndirectInputEvents: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # audio はバックグラウンド再生に使う
+        UIBackgroundModes:
+          - audio
+          - fetch
+          - processing
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSMicrophoneUsageDescription: "Some sites may request microphone access."
+        NSCameraUsageDescription: "Some sites may request camera access."
+        NSPhotoLibraryAddUsageDescription: "Saves media you download from a site."
+    settings:
+      base:
+        # 注釈の無いコードを MainActor に乗せる。rev.55 までは Gecko が
+        # メインスレッド前提だったため必須だった。WebKit の UI 系 API
+        # （WKWebView・WKWebExtension）もメインスレッド前提なので維持する。
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.kotone
+        TARGETED_DEVICE_FAMILY: "1,2"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        # main.swift で UIApplicationMain を呼ぶため @main アトリビュートは使わない。
+
+schemes:
+  Kotone:
+    build:
+      targets:
+        Kotone: all
+    run:
+      config: Debug
+    archive:
+      config: Release

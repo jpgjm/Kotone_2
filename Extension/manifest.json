@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Kotone Bridge",
+  "version": "0.19.2",
+  "description": "Kotone のネイティブ UI と YouTube Music のページを繋ぐ内部用拡張機能（WKWebExtension）。",
+  "permissions": [
+    "nativeMessaging",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://music.youtube.com/*",
+    "*://www.youtube.com/*",
+    "*://m.youtube.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://music.youtube.com/*",
+        "*://www.youtube.com/*",
+        "*://m.youtube.com/*"
+      ],
+      "js": ["page.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "*://music.youtube.com/*",
+        "*://www.youtube.com/*",
+        "*://m.youtube.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
